@@ -1,4 +1,4 @@
-package main
+package exporter 
 
 import (
 	"errors"
@@ -46,7 +46,7 @@ type cloudwatchData struct {
 
 var labelMap = make(map[string][]string)
 
-func createCloudwatchSession(region *string, roleArn string) *cloudwatch.CloudWatch {
+func createCloudwatchSession(region *string, roleArn string, fips, debug bool) *cloudwatch.CloudWatch {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
@@ -55,13 +55,13 @@ func createCloudwatchSession(region *string, roleArn string) *cloudwatch.CloudWa
 
 	config := &aws.Config{Region: region, MaxRetries: &maxCloudwatchRetries}
 
-	if *fips {
+	if fips {
 		// https://docs.aws.amazon.com/general/latest/gr/cw_region.html
 		endpoint := fmt.Sprintf("https://monitoring-fips.%s.amazonaws.com", *region)
 		config.Endpoint = aws.String(endpoint)
 	}
 
-	if *debug {
+	if debug {
 		config.LogLevel = aws.LogLevel(aws.LogDebugWithHTTPBody)
 	}
 
@@ -125,7 +125,7 @@ func findGetMetricDataById(getMetricDatas []cloudwatchData, value string) (cloud
 	return g, fmt.Errorf("Metric with id %s not found", value)
 }
 
-func createGetMetricDataInput(getMetricData []cloudwatchData, namespace *string, length int, delay int, now time.Time) (output *cloudwatch.GetMetricDataInput) {
+func createGetMetricDataInput(getMetricData []cloudwatchData, namespace *string, length int, delay int, now time.Time, floatingTimeWindow bool) (output *cloudwatch.GetMetricDataInput) {
 	var metricsDataQuery []*cloudwatch.MetricDataQuery
 	for _, data := range getMetricData {
 		metricStat := &cloudwatch.MetricStat{
@@ -150,7 +150,7 @@ func createGetMetricDataInput(getMetricData []cloudwatchData, namespace *string,
 	var startTime time.Time
 	if now.IsZero() {
 		//This is first run
-		if *floatingTimeWindow {
+		if floatingTimeWindow {
 			now = time.Now()
 		} else {
 			now = time.Now().Round(5 * time.Minute)
@@ -217,12 +217,12 @@ func (iface cloudwatchInterface) get(filter *cloudwatch.GetMetricStatisticsInput
 	return resp.Datapoints
 }
 
-func (iface cloudwatchInterface) getMetricData(filter *cloudwatch.GetMetricDataInput) *cloudwatch.GetMetricDataOutput {
+func (iface cloudwatchInterface) getMetricData(filter *cloudwatch.GetMetricDataInput, debug bool) *cloudwatch.GetMetricDataOutput {
 	c := iface.client
 
 	var resp cloudwatch.GetMetricDataOutput
 
-	if *debug {
+	if debug {
 		log.Println(filter)
 	}
 
@@ -235,7 +235,7 @@ func (iface cloudwatchInterface) getMetricData(filter *cloudwatch.GetMetricDataI
 			return !lastPage
 		})
 
-	if *debug {
+	if debug {
 		log.Println(resp)
 	}
 
@@ -612,7 +612,7 @@ func getStateMachineNameFromArn(resourceArn string) string {
 	return parsedResource[1]
 }
 
-func createPrometheusLabels(cwd *cloudwatchData) map[string]string {
+func createPrometheusLabels(cwd *cloudwatchData, labelsSnakeCase bool) map[string]string {
 	labels := make(map[string]string)
 	labels["name"] = *cwd.ID
 	labels["region"] = *cwd.Region
@@ -620,18 +620,18 @@ func createPrometheusLabels(cwd *cloudwatchData) map[string]string {
 	// Inject the sfn name back as a label
 	switch *cwd.Service {
 	case "sfn":
-		labels["dimension_"+promStringTag("StateMachineArn")] = getStateMachineNameFromArn(*cwd.ID)
+		labels["dimension_"+promStringTag("StateMachineArn", labelsSnakeCase)] = getStateMachineNameFromArn(*cwd.ID)
 	}
 
 	for _, dimension := range cwd.Dimensions {
-		labels["dimension_"+promStringTag(*dimension.Name)] = *dimension.Value
+		labels["dimension_"+promStringTag(*dimension.Name, labelsSnakeCase)] = *dimension.Value
 	}
 
 	for _, label := range cwd.CustomTags {
-		labels["custom_tag_"+promStringTag(label.Key)] = label.Value
+		labels["custom_tag_"+promStringTag(label.Key, labelsSnakeCase)] = label.Value
 	}
 	for _, tag := range cwd.Tags {
-		labels["tag_"+promStringTag(tag.Key)] = tag.Value
+		labels["tag_"+promStringTag(tag.Key, labelsSnakeCase)] = tag.Value
 	}
 
 	return labels
@@ -743,7 +743,7 @@ func getDatapoint(cwd *cloudwatchData, statistic string) (*float64, time.Time) {
 	return nil, time.Time{}
 }
 
-func migrateCloudwatchToPrometheus(cwd []*cloudwatchData) []*PrometheusMetric {
+func migrateCloudwatchToPrometheus(cwd []*cloudwatchData, labelsSnakeCase bool) []*PrometheusMetric {
 	output := make([]*PrometheusMetric, 0)
 
 	for _, c := range cwd {
@@ -763,7 +763,7 @@ func migrateCloudwatchToPrometheus(cwd []*cloudwatchData) []*PrometheusMetric {
 			name := "aws_" + serviceName + "_" + strings.ToLower(promString(*c.Metric)) + "_" + strings.ToLower(promString(statistic))
 			if exportedDatapoint != nil {
 
-				promLabels := createPrometheusLabels(c)
+				promLabels := createPrometheusLabels(c, labelsSnakeCase)
 				recordLabelsForMetric(name, promLabels)
 				p := PrometheusMetric{
 					name:             &name,

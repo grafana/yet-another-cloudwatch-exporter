@@ -1,4 +1,4 @@
-package main
+package exporter 
 
 import (
 	"fmt"
@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	cloudwatchSemaphore chan struct{}
-	tagSemaphore        chan struct{}
+	cloudwatchSemaphore chan struct{} = make(chan struct{}, 5)
+	tagSemaphore        chan struct{} = make(chan struct{}, 5)
 )
 
-func scrapeAwsData(config conf, now time.Time) ([]*tagsData, []*cloudwatchData, *time.Time) {
+func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, debug, floatingTimeWindow bool) ([]*tagsData, []*cloudwatchData, *time.Time) {
 	mux := &sync.Mutex{}
 
 	cwData := make([]*cloudwatchData, 0)
@@ -33,19 +33,19 @@ func scrapeAwsData(config conf, now time.Time) ([]*tagsData, []*cloudwatchData, 
 				go func(discoveryJob job, region string, roleArn string) {
 					defer wg.Done()
 					clientCloudwatch := cloudwatchInterface{
-						client: createCloudwatchSession(&region, roleArn),
+						client: createCloudwatchSession(&region, roleArn, fips, debug),
 					}
 
 					clientTag := tagsInterface{
-						client:           createTagSession(&region, roleArn),
-						apiGatewayClient: createAPIGatewaySession(&region, roleArn),
-						asgClient:        createASGSession(&region, roleArn),
-						ec2Client:        createEC2Session(&region, roleArn),
+						client:           createTagSession(&region, roleArn, fips),
+						apiGatewayClient: createAPIGatewaySession(&region, roleArn, fips),
+						asgClient:        createASGSession(&region, roleArn, fips),
+						ec2Client:        createEC2Session(&region, roleArn, fips),
 						elbv2Client:      createELBV2Session(&region, roleArn),
 					}
 					var resources []*tagsData
 					var metrics []*cloudwatchData
-					resources, metrics, endtime = scrapeDiscoveryJobUsingMetricData(discoveryJob, region, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch, now)
+					resources, metrics, endtime = scrapeDiscoveryJobUsingMetricData(discoveryJob, region, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch, now, metricsPerQuery, debug, floatingTimeWindow)
 					mux.Lock()
 					awsInfoData = append(awsInfoData, resources...)
 					cwData = append(cwData, metrics...)
@@ -62,7 +62,7 @@ func scrapeAwsData(config conf, now time.Time) ([]*tagsData, []*cloudwatchData, 
 
 				go func(staticJob static, region string, roleArn string) {
 					clientCloudwatch := cloudwatchInterface{
-						client: createCloudwatchSession(&region, roleArn),
+						client: createCloudwatchSession(&region, roleArn, fips, debug),
 					}
 
 					metrics := scrapeStaticJob(staticJob, region, clientCloudwatch)
@@ -128,7 +128,7 @@ func scrapeStaticJob(resource static, region string, clientCloudwatch cloudwatch
 	return cw
 }
 
-func getMetricDataInputLength(job job) int {
+func GetMetricDataInputLength(job job) int {
 	var length int
 
 	// Why is this here? 120?
@@ -227,7 +227,8 @@ func scrapeDiscoveryJobUsingMetricData(
 	region string,
 	tagsOnMetrics exportedTagsOnMetrics,
 	clientTag tagsInterface,
-	clientCloudwatch cloudwatchInterface, now time.Time) (resources []*tagsData, cw []*cloudwatchData, endtime time.Time) {
+	clientCloudwatch cloudwatchInterface, now time.Time,
+	metricsPerQuery int, debug, floatingTimeWindow bool) (resources []*tagsData, cw []*cloudwatchData, endtime time.Time) {
 
 	namespace, err := getNamespace(job.Type)
 	if err != nil {
@@ -243,9 +244,9 @@ func scrapeDiscoveryJobUsingMetricData(
 	}
 
 	getMetricDatas := getMetricDataForQueries(job, region, tagsOnMetrics, clientCloudwatch, resources)
-	maxMetricCount := *metricsPerQuery
+	maxMetricCount := metricsPerQuery
 	metricDataLength := len(getMetricDatas)
-	length := getMetricDataInputLength(job)
+	length := GetMetricDataInputLength(job)
 	partition := int(math.Ceil(float64(metricDataLength) / float64(maxMetricCount)))
 
 	mux := &sync.Mutex{}
@@ -263,8 +264,8 @@ func scrapeDiscoveryJobUsingMetricData(
 			if end > metricDataLength {
 				end = metricDataLength
 			}
-			filter := createGetMetricDataInput(getMetricDatas[i:end], &namespace, length, job.Delay, now)
-			data := clientCloudwatch.getMetricData(filter)
+			filter := createGetMetricDataInput(getMetricDatas[i:end], &namespace, length, job.Delay, now, floatingTimeWindow)
+			data := clientCloudwatch.getMetricData(filter, debug)
 			if data != nil {
 				for _, MetricDataResult := range data.MetricDataResults {
 					getMetricData, err := findGetMetricDataById(getMetricDatas[i:end], *MetricDataResult.Id)

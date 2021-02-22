@@ -1,4 +1,4 @@
-package main
+package exporter
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type conf struct {
+type ScrapeConf struct {
 	Discovery discovery `yaml:"discovery"`
 	Static    []static  `yaml:"static"`
 }
@@ -65,7 +65,47 @@ type tag struct {
 	Value string `yaml:"Value"`
 }
 
-func (c *conf) load(file *string) error {
+var supportedServices = []string{
+		"alb",
+		"apigateway",
+		"appsync",
+		"asg",
+		"cf",
+		"docdb",
+		"dynamodb",
+		"ebs",
+		"ec",
+		"ec2",
+		"ec2Spot",
+		"ecs-svc",
+		"ecs-containerinsights",
+		"efs",
+		"elb",
+		"emr",
+		"es",
+		"firehose",
+		"fsx",
+		"gamelift",
+		"kafka",
+		"kinesis",
+		"lambda",
+		"ngw",
+		"nlb",
+		"rds",
+		"redshift",
+		"r53r",
+		"s3",
+		"sfn",
+		"sns",
+		"sqs",
+		"tgw",
+		"tgwa",
+		"vpn",
+		"wafv2",
+	}
+
+
+func (c *ScrapeConf) Load(file *string) error {
 	yamlFile, err := ioutil.ReadFile(*file)
 	if err != nil {
 		return err
@@ -93,7 +133,7 @@ func (c *conf) load(file *string) error {
 	return nil
 }
 
-func (c *conf) validate() error {
+func (c *ScrapeConf) validate() error {
 	if c.Discovery.Jobs == nil && c.Static == nil {
 		return fmt.Errorf("At least 1 Discovery job or 1 Static must be defined")
 	}
@@ -119,7 +159,7 @@ func (c *conf) validate() error {
 	return nil
 }
 
-func (c *conf) validateDiscoveryJob(j job, jobIdx int) error {
+func (c *ScrapeConf) validateDiscoveryJob(j job, jobIdx int) error {
 	if j.Type != "" {
 		if !stringInSlice(j.Type, supportedServices) {
 			return fmt.Errorf("Discovery job [%d]: Service is not in known list!: %s", jobIdx, j.Type)
@@ -144,7 +184,7 @@ func (c *conf) validateDiscoveryJob(j job, jobIdx int) error {
 	return nil
 }
 
-func (c *conf) validateStaticJob(j static, jobIdx int) error {
+func (c *ScrapeConf) validateStaticJob(j static, jobIdx int) error {
 	if j.Name == "" {
 		return fmt.Errorf("Static job [%v]: Name should not be empty", jobIdx)
 	}
@@ -164,7 +204,7 @@ func (c *conf) validateStaticJob(j static, jobIdx int) error {
 	return nil
 }
 
-func (c *conf) validateMetric(m metric, metricIdx int, parent string, discovery *job) error {
+func (c *ScrapeConf) validateMetric(m metric, metricIdx int, parent string, discovery *job) error {
 	if m.Name == "" {
 		return fmt.Errorf("Metric [%s/%d] in %v: Name should not be empty", m.Name, metricIdx, parent)
 	}
