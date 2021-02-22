@@ -31,7 +31,7 @@ func TestMigrateTagsToPrometheus(t *testing.T) {
 	expected := []*PrometheusMetric{&p}
 
 	// Act
-	actual := migrateTagsToPrometheus(tagsData)
+	actual := migrateTagsToPrometheus(tagsData, false)
 
 	// Assert
 	if *actual[0].name != *expected[0].name {

@@ -5,9 +5,9 @@ import (
 )
 
 func TestConfLoad(t *testing.T) {
-	config = ScrapeConf{}
+	config := ScrapeConf{}
 	configFile := "config_test.yml"
-	if err := config.load(&configFile); err != nil {
+	if err := config.Load(&configFile); err != nil {
 		t.Error(err)
 	}
 }
