@@ -12,12 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	cloudwatchSemaphore chan struct{} = make(chan struct{}, 5)
-	tagSemaphore        chan struct{} = make(chan struct{}, 5)
-)
-
-func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, debug, floatingTimeWindow bool) ([]*tagsData, []*cloudwatchData, *time.Time) {
+func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, debug, floatingTimeWindow bool, cloudwatchSemaphore, tagSemaphore chan struct{}) ([]*tagsData, []*cloudwatchData, *time.Time) {
 	mux := &sync.Mutex{}
 
 	cwData := make([]*cloudwatchData, 0)
@@ -45,7 +40,7 @@ func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, 
 					}
 					var resources []*tagsData
 					var metrics []*cloudwatchData
-					resources, metrics, endtime = scrapeDiscoveryJobUsingMetricData(discoveryJob, region, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch, now, metricsPerQuery, debug, floatingTimeWindow)
+					resources, metrics, endtime = scrapeDiscoveryJobUsingMetricData(discoveryJob, region, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch, now, metricsPerQuery, debug, floatingTimeWindow, tagSemaphore)
 					mux.Lock()
 					awsInfoData = append(awsInfoData, resources...)
 					cwData = append(cwData, metrics...)
@@ -65,7 +60,7 @@ func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, 
 						client: createCloudwatchSession(&region, roleArn, fips, debug),
 					}
 
-					metrics := scrapeStaticJob(staticJob, region, clientCloudwatch)
+					metrics := scrapeStaticJob(staticJob, region, clientCloudwatch, cloudwatchSemaphore)
 
 					mux.Lock()
 					cwData = append(cwData, metrics...)
@@ -80,7 +75,7 @@ func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, 
 	return awsInfoData, cwData, &endtime
 }
 
-func scrapeStaticJob(resource static, region string, clientCloudwatch cloudwatchInterface) (cw []*cloudwatchData) {
+func scrapeStaticJob(resource static, region string, clientCloudwatch cloudwatchInterface, cloudwatchSemaphore chan struct{}) (cw []*cloudwatchData) {
 	mux := &sync.Mutex{}
 	var wg sync.WaitGroup
 
@@ -160,7 +155,8 @@ func getMetricDataForQueries(
 	region string,
 	tagsOnMetrics exportedTagsOnMetrics,
 	clientCloudwatch cloudwatchInterface,
-	resources []*tagsData) []cloudwatchData {
+	resources []*tagsData,
+	tagSemaphore chan struct{}) []cloudwatchData {
 	var getMetricDatas []cloudwatchData
 
 	// Get the awsDimensions of the job configuration
@@ -228,7 +224,8 @@ func scrapeDiscoveryJobUsingMetricData(
 	tagsOnMetrics exportedTagsOnMetrics,
 	clientTag tagsInterface,
 	clientCloudwatch cloudwatchInterface, now time.Time,
-	metricsPerQuery int, debug, floatingTimeWindow bool) (resources []*tagsData, cw []*cloudwatchData, endtime time.Time) {
+	metricsPerQuery int, debug, floatingTimeWindow bool,
+	tagSemaphore chan struct{}) (resources []*tagsData, cw []*cloudwatchData, endtime time.Time) {
 
 	namespace, err := getNamespace(job.Type)
 	if err != nil {
@@ -243,7 +240,7 @@ func scrapeDiscoveryJobUsingMetricData(
 		return
 	}
 
-	getMetricDatas := getMetricDataForQueries(job, region, tagsOnMetrics, clientCloudwatch, resources)
+	getMetricDatas := getMetricDataForQueries(job, region, tagsOnMetrics, clientCloudwatch, resources, tagSemaphore)
 	maxMetricCount := metricsPerQuery
 	metricDataLength := len(getMetricDatas)
 	length := GetMetricDataInputLength(job)
