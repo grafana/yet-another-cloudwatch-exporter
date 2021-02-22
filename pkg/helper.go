@@ -1,4 +1,4 @@
-package exporter 
+package exporter
 
 func stringInSlice(str string, list []string) bool {
 	for _, v := range list {

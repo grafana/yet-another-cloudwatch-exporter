@@ -1,6 +1,6 @@
 package exporter
 
-import(
+import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
