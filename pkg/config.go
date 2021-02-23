@@ -9,45 +9,45 @@ import (
 )
 
 type ScrapeConf struct {
-	Discovery discovery `yaml:"discovery"`
-	Static    []static  `yaml:"static"`
+	Discovery Discovery `yaml:"discovery"`
+	Static    []Static  `yaml:"static"`
 }
 
-type discovery struct {
+type Discovery struct {
 	ExportedTagsOnMetrics exportedTagsOnMetrics `yaml:"exportedTagsOnMetrics"`
-	Jobs                  []job                 `yaml:"jobs"`
+	Jobs                  []Job                 `yaml:"jobs"`
 }
 
 type exportedTagsOnMetrics map[string][]string
 
-type job struct {
+type Job struct {
 	Regions                []string `yaml:"regions"`
 	Type                   string   `yaml:"type"`
 	RoleArns               []string `yaml:"roleArns"`
 	AwsDimensions          []string `yaml:"awsDimensions"`
-	SearchTags             []tag    `yaml:"searchTags"`
-	CustomTags             []tag    `yaml:"customTags"`
-	Metrics                []metric `yaml:"metrics"`
+	SearchTags             []Tag    `yaml:"searchTags"`
+	CustomTags             []Tag    `yaml:"customTags"`
+	Metrics                []Metric `yaml:"metrics"`
 	Length                 int      `yaml:"length"`
 	Delay                  int      `yaml:"delay"`
 	Period                 int      `yaml:"period"`
 	AddCloudwatchTimestamp bool     `yaml:"addCloudwatchTimestamp"`
 }
 
-type static struct {
+type Static struct {
 	Name       string      `yaml:"name"`
 	Regions    []string    `yaml:"regions"`
 	RoleArns   []string    `yaml:"roleArns"`
 	Namespace  string      `yaml:"namespace"`
-	CustomTags []tag       `yaml:"customTags"`
-	Dimensions []dimension `yaml:"dimensions"`
-	Metrics    []metric    `yaml:"metrics"`
+	CustomTags []Tag       `yaml:"customTags"`
+	Dimensions []Dimension `yaml:"dimensions"`
+	Metrics    []Metric    `yaml:"metrics"`
 }
 
-type metric struct {
+type Metric struct {
 	Name                   string      `yaml:"name"`
 	Statistics             []string    `yaml:"statistics"`
-	AdditionalDimensions   []dimension `yaml:"additionalDimensions"`
+	AdditionalDimensions   []Dimension `yaml:"additionalDimensions"`
 	Period                 int         `yaml:"period"`
 	Length                 int         `yaml:"length"`
 	Delay                  int         `yaml:"delay"`
@@ -55,12 +55,12 @@ type metric struct {
 	AddCloudwatchTimestamp bool        `yaml:"addCloudwatchTimestamp"`
 }
 
-type dimension struct {
+type Dimension struct {
 	Name  string `yaml:"name"`
 	Value string `yaml:"value"`
 }
 
-type tag struct {
+type Tag struct {
 	Key   string `yaml:"Key"`
 	Value string `yaml:"Value"`
 }
@@ -158,7 +158,7 @@ func (c *ScrapeConf) validate() error {
 	return nil
 }
 
-func (c *ScrapeConf) validateDiscoveryJob(j job, jobIdx int) error {
+func (c *ScrapeConf) validateDiscoveryJob(j Job, jobIdx int) error {
 	if j.Type != "" {
 		if !stringInSlice(j.Type, supportedServices) {
 			return fmt.Errorf("Discovery job [%d]: Service is not in known list!: %s", jobIdx, j.Type)
@@ -183,7 +183,7 @@ func (c *ScrapeConf) validateDiscoveryJob(j job, jobIdx int) error {
 	return nil
 }
 
-func (c *ScrapeConf) validateStaticJob(j static, jobIdx int) error {
+func (c *ScrapeConf) validateStaticJob(j Static, jobIdx int) error {
 	if j.Name == "" {
 		return fmt.Errorf("Static job [%v]: Name should not be empty", jobIdx)
 	}
@@ -203,7 +203,7 @@ func (c *ScrapeConf) validateStaticJob(j static, jobIdx int) error {
 	return nil
 }
 
-func (c *ScrapeConf) validateMetric(m metric, metricIdx int, parent string, discovery *job) error {
+func (c *ScrapeConf) validateMetric(m Metric, metricIdx int, parent string, discovery *Job) error {
 	if m.Name == "" {
 		return fmt.Errorf("Metric [%s/%d] in %v: Name should not be empty", m.Name, metricIdx, parent)
 	}

@@ -24,7 +24,7 @@ import (
 type tagsData struct {
 	ID      *string
 	Matcher *string
-	Tags    []*tag
+	Tags    []*Tag
 	Service *string
 	Region  *string
 }
@@ -107,7 +107,7 @@ func createELBV2Session(region *string, roleArn string) elbv2.ELBV2 {
 	return *elbv2.New(createSession(roleArn, config), config)
 }
 
-func (iface tagsInterface) get(job job, region string) (resources []*tagsData, err error) {
+func (iface tagsInterface) get(job Job, region string) (resources []*tagsData, err error) {
 	switch job.Type {
 	case "asg":
 		return iface.getTaggedAutoscalingGroups(job, region)
@@ -183,7 +183,7 @@ func (iface tagsInterface) get(job job, region string) (resources []*tagsData, e
 			resource.Region = &region
 
 			for _, t := range resourceTagMapping.Tags {
-				resource.Tags = append(resource.Tags, &tag{Key: *t.Key, Value: *t.Value})
+				resource.Tags = append(resource.Tags, &Tag{Key: *t.Key, Value: *t.Value})
 			}
 
 			if resource.filterThroughTags(job.SearchTags) {
@@ -312,7 +312,7 @@ func (iface tagsInterface) getTargetGroups(resources []*tagsData, targetGroupArn
 
 // Once the resourcemappingapi supports ASGs then this workaround method can be deleted
 // https://docs.aws.amazon.com/sdk-for-go/api/service/resourcegroupstaggingapi/
-func (iface tagsInterface) getTaggedAutoscalingGroups(job job, region string) (resources []*tagsData, err error) {
+func (iface tagsInterface) getTaggedAutoscalingGroups(job Job, region string) (resources []*tagsData, err error) {
 	ctx := context.Background()
 	pageNum := 0
 	return resources, iface.asgClient.DescribeAutoScalingGroupsPagesWithContext(ctx, &autoscaling.DescribeAutoScalingGroupsInput{},
@@ -331,7 +331,7 @@ func (iface tagsInterface) getTaggedAutoscalingGroups(job job, region string) (r
 				resource.Region = &region
 
 				for _, t := range asg.Tags {
-					resource.Tags = append(resource.Tags, &tag{Key: *t.Key, Value: *t.Value})
+					resource.Tags = append(resource.Tags, &Tag{Key: *t.Key, Value: *t.Value})
 				}
 
 				if resource.filterThroughTags(job.SearchTags) {
@@ -359,7 +359,7 @@ func (iface tagsInterface) getTaggedApiGateway() (*apigateway.GetRestApisOutput,
 	return &output, err
 }
 
-func (iface tagsInterface) getTaggedTransitGatewayAttachments(job job, region string) (resources []*tagsData, err error) {
+func (iface tagsInterface) getTaggedTransitGatewayAttachments(job Job, region string) (resources []*tagsData, err error) {
 	ctx := context.Background()
 	pageNum := 0
 	return resources, iface.ec2Client.DescribeTransitGatewayAttachmentsPagesWithContext(ctx, &ec2.DescribeTransitGatewayAttachmentsInput{},
@@ -376,7 +376,7 @@ func (iface tagsInterface) getTaggedTransitGatewayAttachments(job job, region st
 				resource.Region = &region
 
 				for _, t := range tgwa.Tags {
-					resource.Tags = append(resource.Tags, &tag{Key: *t.Key, Value: *t.Value})
+					resource.Tags = append(resource.Tags, &Tag{Key: *t.Key, Value: *t.Value})
 				}
 
 				if resource.filterThroughTags(job.SearchTags) {
@@ -387,7 +387,7 @@ func (iface tagsInterface) getTaggedTransitGatewayAttachments(job job, region st
 		})
 }
 
-func (iface tagsInterface) getTaggedEC2SpotInstances(job job, region string) (resources []*tagsData, err error) {
+func (iface tagsInterface) getTaggedEC2SpotInstances(job Job, region string) (resources []*tagsData, err error) {
 	ctx := context.Background()
 	pageNum := 0
 	return resources, iface.ec2Client.DescribeSpotFleetRequestsPagesWithContext(ctx, &ec2.DescribeSpotFleetRequestsInput{},
@@ -404,7 +404,7 @@ func (iface tagsInterface) getTaggedEC2SpotInstances(job job, region string) (re
 				resource.Region = &region
 
 				for _, t := range ec2Spot.Tags {
-					resource.Tags = append(resource.Tags, &tag{Key: *t.Key, Value: *t.Value})
+					resource.Tags = append(resource.Tags, &Tag{Key: *t.Key, Value: *t.Value})
 				}
 
 				if resource.filterThroughTags(job.SearchTags) {

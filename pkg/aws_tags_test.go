@@ -11,8 +11,8 @@ func TestMigrateTagsToPrometheus(t *testing.T) {
 	id := "tag_Id"
 	service := "tag_Service"
 	region := "us-east-1"
-	tagItem := tag{Key: "Name", Value: "tag_Value"}
-	tags := []*tag{&tagItem}
+	tagItem := Tag{Key: "Name", Value: "tag_Value"}
+	tags := []*Tag{&tagItem}
 	tagData := tagsData{ID: &id, Service: &service, Region: &region, Tags: tags}
 	tagsData := []*tagsData{&tagData}
 

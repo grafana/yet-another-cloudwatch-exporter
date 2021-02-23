@@ -37,8 +37,8 @@ type cloudwatchData struct {
 	GetMetricDataTimestamps *time.Time
 	NilToZero               *bool
 	AddCloudwatchTimestamp  *bool
-	CustomTags              []tag
-	Tags                    []tag
+	CustomTags              []Tag
+	Tags                    []Tag
 	Dimensions              []*cloudwatch.Dimension
 	Region                  *string
 	Period                  int64
@@ -72,7 +72,7 @@ func createCloudwatchSession(region *string, roleArn string, fips, debug bool) *
 	return cloudwatch.New(sess, config)
 }
 
-func createGetMetricStatisticsInput(dimensions []*cloudwatch.Dimension, namespace *string, metric metric) (output *cloudwatch.GetMetricStatisticsInput) {
+func createGetMetricStatisticsInput(dimensions []*cloudwatch.Dimension, namespace *string, metric Metric) (output *cloudwatch.GetMetricStatisticsInput) {
 	period := int64(metric.Period)
 	length := metric.Length
 	delay := metric.Delay
@@ -295,7 +295,7 @@ func getNamespace(service string) (string, error) {
 	return ns, nil
 }
 
-func createStaticDimensions(dimensions []dimension) (output []*cloudwatch.Dimension) {
+func createStaticDimensions(dimensions []Dimension) (output []*cloudwatch.Dimension) {
 	for _, d := range dimensions {
 		output = append(output, buildDimension(d.Name, d.Value))
 	}
@@ -315,14 +315,14 @@ func filterDimensionsWithoutValueByDimensionsWithValue(
 	return dimensions
 }
 
-func getAwsDimensions(job job) (dimensions []*cloudwatch.Dimension) {
+func getAwsDimensions(job Job) (dimensions []*cloudwatch.Dimension) {
 	for _, awsDimension := range job.AwsDimensions {
 		dimensions = append(dimensions, buildDimensionWithoutValue(awsDimension))
 	}
 	return dimensions
 }
 
-func getFullMetricsList(namespace string, metric metric, clientCloudwatch cloudwatchInterface) (resp *cloudwatch.ListMetricsOutput) {
+func getFullMetricsList(namespace string, metric Metric, clientCloudwatch cloudwatchInterface) (resp *cloudwatch.ListMetricsOutput) {
 	c := clientCloudwatch.client
 	filter := createListMetricsInput(nil, &namespace, &metric.Name)
 	var res cloudwatch.ListMetricsOutput
@@ -542,7 +542,7 @@ func detectDimensionsByService(resource *tagsData, fullMetricsList *cloudwatch.L
 	return dimensions
 }
 
-func addAdditionalDimensions(startingDimensions []*cloudwatch.Dimension, additionalDimensions []dimension) (dimensions []*cloudwatch.Dimension) {
+func addAdditionalDimensions(startingDimensions []*cloudwatch.Dimension, additionalDimensions []Dimension) (dimensions []*cloudwatch.Dimension) {
 	// Copy startingDimensions before appending additionalDimensions, since append(x, ...) can modify x
 	dimensions = append(dimensions, startingDimensions...)
 	for _, dimension := range additionalDimensions {

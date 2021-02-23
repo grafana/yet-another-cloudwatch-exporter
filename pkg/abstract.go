@@ -25,7 +25,7 @@ func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, 
 			for _, region := range discoveryJob.Regions {
 				wg.Add(1)
 
-				go func(discoveryJob job, region string, roleArn string) {
+				go func(discoveryJob Job, region string, roleArn string) {
 					defer wg.Done()
 					clientCloudwatch := cloudwatchInterface{
 						client: createCloudwatchSession(&region, roleArn, fips, debug),
@@ -55,7 +55,7 @@ func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, 
 			for _, region := range staticJob.Regions {
 				wg.Add(1)
 
-				go func(staticJob static, region string, roleArn string) {
+				go func(staticJob Static, region string, roleArn string) {
 					clientCloudwatch := cloudwatchInterface{
 						client: createCloudwatchSession(&region, roleArn, fips, debug),
 					}
@@ -75,7 +75,7 @@ func scrapeAwsData(config ScrapeConf, now time.Time, metricsPerQuery int, fips, 
 	return awsInfoData, cwData, &endtime
 }
 
-func scrapeStaticJob(resource static, region string, clientCloudwatch cloudwatchInterface, cloudwatchSemaphore chan struct{}) (cw []*cloudwatchData) {
+func scrapeStaticJob(resource Static, region string, clientCloudwatch cloudwatchInterface, cloudwatchSemaphore chan struct{}) (cw []*cloudwatchData) {
 	mux := &sync.Mutex{}
 	var wg sync.WaitGroup
 
@@ -123,7 +123,7 @@ func scrapeStaticJob(resource static, region string, clientCloudwatch cloudwatch
 	return cw
 }
 
-func GetMetricDataInputLength(job job) int {
+func GetMetricDataInputLength(job Job) int {
 	var length int
 
 	// Why is this here? 120?
@@ -140,7 +140,7 @@ func GetMetricDataInputLength(job job) int {
 	return length
 }
 
-func getMetricPeriod(job job, metric metric) int64 {
+func getMetricPeriod(job Job, metric Metric) int64 {
 	if metric.Period != 0 {
 		return int64(metric.Period)
 	}
@@ -151,7 +151,7 @@ func getMetricPeriod(job job, metric metric) int64 {
 }
 
 func getMetricDataForQueries(
-	discoveryJob job,
+	discoveryJob Job,
 	region string,
 	tagsOnMetrics exportedTagsOnMetrics,
 	clientCloudwatch cloudwatchInterface,
@@ -219,7 +219,7 @@ func getMetricDataForQueries(
 }
 
 func scrapeDiscoveryJobUsingMetricData(
-	job job,
+	job Job,
 	region string,
 	tagsOnMetrics exportedTagsOnMetrics,
 	clientTag tagsInterface,
@@ -285,7 +285,7 @@ func scrapeDiscoveryJobUsingMetricData(
 	return resources, cw, endtime
 }
 
-func (r tagsData) filterThroughTags(filterTags []tag) bool {
+func (r tagsData) filterThroughTags(filterTags []Tag) bool {
 	tagMatches := 0
 
 	for _, resourceTag := range r.Tags {
@@ -302,10 +302,10 @@ func (r tagsData) filterThroughTags(filterTags []tag) bool {
 	return tagMatches == len(filterTags)
 }
 
-func (r tagsData) metricTags(tagsOnMetrics exportedTagsOnMetrics) []tag {
-	tags := make([]tag, 0)
+func (r tagsData) metricTags(tagsOnMetrics exportedTagsOnMetrics) []Tag {
+	tags := make([]Tag, 0)
 	for _, tagName := range tagsOnMetrics[*r.Service] {
-		tag := tag{
+		tag := Tag{
 			Key: tagName,
 		}
 		for _, resourceTag := range r.Tags {
